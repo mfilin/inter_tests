@@ -27,7 +27,9 @@ if (!isset($_POST['qdate'])){
         <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
         <script>
             $(function(){
-                $('.qdate').datepicker();
+                $('.qdate').datepicker({
+                    dateFormat : "dd-mm-yy"
+                });
             });
         </script>
     </body>
@@ -35,14 +37,15 @@ if (!isset($_POST['qdate'])){
 
 <?php } else {
 
-    require_once('./config.php');    
+    require_once('./config.php');
+    
+    $cdate = strtotime($_POST['qdate']);
 
     $dbh = new PDO('mysql:host=' . DBHOST . ';dbname=' . DBNAME, DBUSER, DBPASS);
-    $query = $dbh->prepare("SET NAMES utf8");
-    $query->execute();
-
-    $stmt = $dbh->prepare('SELECT cval FROM t_curces WHERE cdate = ?');
-    $stmt->execute([1001]);
+    $dbh->setAttribute( PDO::ATTR_ERRMODE, PDO::ERRMODE_WARNING );
+    
+    $stmt = $dbh->prepare("SELECT cval FROM t_curces WHERE cdate = $cdate");
+    $stmt->execute();
     $val = $stmt->fetchAll();
     
     if (!$val){
@@ -53,41 +56,29 @@ if (!isset($_POST['qdate'])){
         if(preg_match("%<ValCurs.*?>(.*?)<\/ValCurs>%is", $xmlFile, $m)){
             preg_match_all("%<Valute(.*?)<\/Valute>%is", $xmlFile, $r);
 
-            $curs = null;
             foreach($r[0] as $row){
                 if (strpos($row, 'USD') !== false){
-                    preg_match("%<Value(.*?)<\/Value>%is", $row, $curs);
+                    preg_match("%<Value>(.*?)<\/Value>%is", $row, $curs);
                     break;
                 }
             }
 
-            if (isset($curs[0])){
-                $cdate = strtotime($_POST['qdate']);
-                $cval  = floatval($curs[0]);
-
-                echo $cval . '<br>';
-                echo $curs[0] . '<br>';
-                die;
-
-                $sql = "INSERT INTO t_curces (`cdate`, `cval`) VALUES ($cdate, $cval)";
-                $stm = $dbh->prepare($sql);
-
-                try{
-                    echo $sql;
-                    $stm->execute($values);
-                }
-                catch(Exception $exp){
-                    print_r($exp);
-                }
+            if (isset($curs[1])){
+                $cval  = str_replace(',', '.',  $curs[1]);
+                $q = $dbh->prepare("INSERT INTO t_curces (cdate, cval) VALUES ('$cdate', '$cval')");
+                $q->execute();                
             }
             else{
                 throw new Exception('Что то пошло не так...');
             }
-        }
-        
+
+            echo 'КУРС $ на дату [ ' . $_POST['qdate'] . ' ] - <strong>' . $cval . '</strong><br>';
+            echo '<a href = "javascript:history.back()">вернуться</a>';
+        }        
     }
     else{
-        echo 'ДАННЫЕ';
+        echo 'КУРС $ на дату [ ' . $_POST['qdate'] . ' ] - <strong>' . $val[0]['cval'] . '</strong><br>';
+        echo '<a href = "javascript:history.back()">вернуться</a>';
     }
 } ?>
 
